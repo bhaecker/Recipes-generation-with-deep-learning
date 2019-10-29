@@ -1,7 +1,7 @@
 # Recipes-generation-with-deep-learning
 1. We refer to the following papers:
   * [Neural Text Generation:  A Practical Guide](https://arxiv.org/pdf/1711.09534.pdf) describes and deals with typical unwanted behavior of text generation models
-  * [Sequence to Sequence Learningwith Neural Networks](http://papers.nips.cc/paper/5346-sequence-to-sequence-learning-with-neural-networks.pdf) shows how LSTMs can be used to deal with long sentences
+  * [Sequence to Sequence Learning with Neural Networks](http://papers.nips.cc/paper/5346-sequence-to-sequence-learning-with-neural-networks.pdf) shows how LSTMs can be used to deal with long sentences
   * [Attention Is All You Need](https://papers.nips.cc/paper/7181-attention-is-all-you-need.pdf) introduces a new technique called attention mechanism, which might be interesting for our task
 2. The topic we are working on is natural language processing and in particular text generation, which is also refered to as *Natural Language Generation*.
 3. For training the DNN we use an existing data set and try to find the optimal architecture of a DNN to generate plausible texts.
