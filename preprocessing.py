@@ -7,44 +7,76 @@ import re
 #from keras.preprocessing.text import text_to_word_sequence
 #import textgenrnn
 
-with open('recipes.json') as f: #load data set
+#load data set
+with open('recipes.json') as f:
   data = json.load(f)
+#safe as dataframe and drop columns which are not needed
 df = pd.DataFrame(data).drop(columns=['Day','Month', 'Name','Url','Weekday','Year'])
 
-df['Ingredients'] = df['Ingredients'].astype(str) #convert Ingredients list to a single string
-#print(type(df['Ingredients'][0])) #check if worked
-
-#!!todo: put spaces before ] and after [
+#convert Ingredients list to a single string
+df['Ingredients'] = df['Ingredients'].astype(str)
 
 for i in range(0,len(df['Ingredients'])):
-  df.at[i,'Ingredients'] = re.sub(r'\.([a-zA-Z])', r'. \1', df['Ingredients'][i]) #put a space after each "."
+
+  df.at[i,'Ingredients'] = re.sub(r'\.([a-zA-Z])', r'. \1', df['Ingredients'][i])  #put a space after each "."
+  df.at[i,'Ingredients'] = re.sub(r'\!([a-zA-Z])', r'! \1', df['Ingredients'][i])  # put a space after each "!"
+  df.at[i,'Ingredients'] = re.sub(r'\,([a-zA-Z])', r', \1', df['Ingredients'][i])  # put a space after each ","
+  df.at[i,'Ingredients'] = re.sub(r'\:([a-zA-Z])', r': \1', df['Ingredients'][i])  # put a space after each ":"
+  df.at[i,'Ingredients'] = re.sub(r'\)([a-zA-Z])', r') \1', df['Ingredients'][i])  # put a space after each ")"
+  df.at[i,'Ingredients'] = re.sub(r'\(([a-zA-Z])', r'( \1', df['Ingredients'][i])  # put a space after each "("
+  df.at[i,'Ingredients'] = re.sub(r'\[([a-zA-Z])', r'[ \1', df['Ingredients'][i])  # put a space after each "["
+  df.at[i,'Ingredients'] = re.sub(r'\]([a-zA-Z])', r'] \1', df['Ingredients'][i])  # put a space after each "]"
+
+  df.at[i, 'Ingredients'] = re.sub(r'([a-zA-Z])\.', r'\1 .', df['Ingredients'][i])  # put a space before each "."
+  df.at[i, 'Ingredients'] = re.sub(r'([a-zA-Z])\,', r'\1 ,', df['Ingredients'][i])  # put a space before each ","
+  df.at[i, 'Ingredients'] = re.sub(r'([a-zA-Z])\!', r'\1 !', df['Ingredients'][i])  # put a space before each "!"
+  df.at[i, 'Ingredients'] = re.sub(r'([a-zA-Z])\:', r'\1 :', df['Ingredients'][i])  # put a space before each ":"
+  df.at[i, 'Ingredients'] = re.sub(r'([a-zA-Z])\)', r'\1 )', df['Ingredients'][i])  # put a space before each ")"
+  df.at[i, 'Ingredients'] = re.sub(r'([a-zA-Z])\(', r'\1 (', df['Ingredients'][i])  # put a space before each "("
+  df.at[i, 'Ingredients'] = re.sub(r'([a-zA-Z])\[', r'\1 [', df['Ingredients'][i])  # put a space before each "["
+  df.at[i, 'Ingredients'] = re.sub(r'([a-zA-Z])\]', r'\1 ]', df['Ingredients'][i])  # put a space before each "]"
 
 for i in range(0,len(df['Instructions'])):
+
   df.at[i,'Instructions'] = re.sub(r'\.([a-zA-Z])', r'. \1', df['Instructions'][i]) #put a space after each "."
+  df.at[i,'Instructions'] = re.sub(r'\!([a-zA-Z])', r'! \1', df['Instructions'][i])  # put a space after each "!"
+  df.at[i,'Instructions'] = re.sub(r'\,([a-zA-Z])', r', \1', df['Instructions'][i])  # put a space after each ","
+  df.at[i,'Instructions'] = re.sub(r'\:([a-zA-Z])', r': \1', df['Instructions'][i])  # put a space after each ":"
+  df.at[i,'Instructions'] = re.sub(r'\)([a-zA-Z])', r') \1', df['Instructions'][i])  # put a space after each ")"
+  df.at[i,'Instructions'] = re.sub(r'\(([a-zA-Z])', r'( \1', df['Instructions'][i])  # put a space after each "("
+  df.at[i,'Instructions'] = re.sub(r'\[([a-zA-Z])', r'[ \1', df['Instructions'][i])  # put a space after each "["
+  df.at[i,'Instructions'] = re.sub(r'\]([a-zA-Z])', r'] \1', df['Instructions'][i])  # put a space after each "]"
 
-#at the end pls
-#df.Ingredients = df.Ingredients.str.pad(width=df.Ingredients.map(len).max(), side='right') #pad all entries to same length
-#df.Instructions = df.Instructions.str.pad(width=df.Instructions.map(len).max(), side='right')
+  df.at[i,'Instructions'] = re.sub(r'([a-zA-Z])\.', r'\1 .', df['Instructions'][i])  #put a space before each "."
+  df.at[i,'Instructions'] = re.sub(r'([a-zA-Z])\,', r'\1 ,', df['Instructions'][i])  # put a space before each ","
+  df.at[i,'Instructions'] = re.sub(r'([a-zA-Z])\!', r'\1 !', df['Instructions'][i])  # put a space before each "!"
+  df.at[i,'Instructions'] = re.sub(r'([a-zA-Z])\:', r'\1 :', df['Instructions'][i])  # put a space before each ":"
+  df.at[i,'Instructions'] = re.sub(r'([a-zA-Z])\)', r'\1 )', df['Instructions'][i])  # put a space before each ")"
+  df.at[i,'Instructions'] = re.sub(r'([a-zA-Z])\(', r'\1 (', df['Instructions'][i])  # put a space before each "("
+  df.at[i,'Instructions'] = re.sub(r'([a-zA-Z])\[', r'\1 [', df['Instructions'][i])  # put a space before each "["
+  df.at[i,'Instructions'] = re.sub(r'([a-zA-Z])\]', r'\1 ]', df['Instructions'][i])  # put a space before each "]"
 
-#size = 0
-#for index, row in df.iterrows():
- # size = size + len(row[1].split())
+#open text file to save the result
+#text_file = open("corpus.txt", "w", encoding="utf-8")
 
-#print(size)
-
-
-#text_file = open("text.txt", "w", encoding="utf-8")
-
+#slice each sample into many
 for index,row in df.iterrows():
+  #make a list of words out of Instructions
   split_list = row[1].split()
+  #make number-of-words many smaples out of one sample
   for place in range(0,len(split_list)):
+    #start with Ingredients as predictors
     line = row[0] + ' '
+    #append the line with predictors/trainig strings
     for i in range(0,place):
       line = line + split_list[i] + ' '
-    line = line + ' | ' #seperates training and target strings
+    #seperate training and target strings
+    line = line + ' | '
+    #append the line with target
     for j in range(place,len(split_list)):
       line = line + split_list[j] + ' '
-    line = line.translate({ord("'"): None})  # make a paragraph after each line
+    # make a paragraph after each line
+    line = line.translate({ord("'"): None})
     text_file.write(line + "\n")
 
 print('done')
@@ -143,3 +175,8 @@ print('done')
  #   for ingridient in ingredientlist:
   #      words.append(text_to_word_sequence(ingridient,lower=False))
 
+#print(generate_choose_from_n_best(n_bestwords,['600 g Kartoffel(n), Zucker, Kolbász, 1 Bund Suppengrün, Ei, Mehl, Salz'],model,t,reverse_word_map,words,max_list_predictors))
+#print(generate_choose_from_n_best(n_bestwords,['500 g Nudeln,, Zucker, 200 g Haselnüsse, Zwiebeln, 1 Liter Milch, Mehl, 500 g Schweinelende(n)'],model,t,reverse_word_map,words,max_list_predictors))
+#print(generate_choose_from_n_best(n_bestwords,['3 Schalotte(n), Muschel(n), 250 g Quark, 100 g Babyspinat, 1 Liter Milch, Mehl, Zucchini'],model,t,reverse_word_map,words,max_list_predictors))
+#print(generate_choose_from_n_best(n_bestwords,['3 kg Roastbeef, Mehl, 500 g Schweinelende(n)'],model,t,reverse_word_map,words,max_list_predictors))
+#print(generate_choose_from_n_best(n_bestwords,['2 Dosen Bohnen, Knoblauch, Paprika'],model,t,reverse_word_map,words,max_list_predictors))
