@@ -20,6 +20,11 @@
  * Once we are statisfied with the result, we build a runable script, which takes about 5 hours.
  * For the report and presentation preparation we may take another 5 hours.
 
+# Hacking
+Additionally to the python scripts there is an .exe file available on google drive. 
+ * The error metric we use is categorical_crossentropy.
+ * We achieve 0 loss, which indicates overfitting
+ * for the text generation we use a final model with non-zero loss
 
 
 
