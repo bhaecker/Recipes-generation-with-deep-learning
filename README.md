@@ -23,8 +23,8 @@
 # Hacking
 Additionally to the python scripts there is an .exe file available on google drive. 
  * The error metric we use is categorical_crossentropy.
- * We achieve 0 loss, which indicates overfitting
- * for the text generation we use a final model with non-zero loss
+ * We achieve 0 loss, which indicates overfitting.
+ * For the text generation we use a final model with non-zero loss.
 
 
 
