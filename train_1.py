@@ -7,14 +7,18 @@ from keras.models import Sequential
 from keras.utils import to_categorical, plot_model
 from keras.layers import Dropout, Dense, LSTM, Embedding
 from keras.callbacks import ModelCheckpoint
+from keras.models import load_model
 
 import sys
 import json
 import random as rd
 from random import randint
+import re
 
+#functions for preparing the data sets and test instances:
 
 def generate_testcases(data_path,size,length):
+    'generates test strings (list of ingredients) from original jason file'
     # load data set
     with open(data_path) as f:
         data = json.load(f)
@@ -42,6 +46,7 @@ def generate_testcases(data_path,size,length):
 
 
 def load_data(data_path,size):
+    'creates a data set by randomly choosing samples'
     data = pd.read_csv(data_path, sep='|', names=['texts', 'target'], header=None)
     #random picking size-many samples
     df = data.sample(size, axis=0)
@@ -52,6 +57,7 @@ def load_data(data_path,size):
     return(df)
 
 def load_data_ordered(data_path,size):
+    'creates a data set by choosing samples in order from the original file'
     data = pd.read_csv(data_path, sep='|', names=['texts', 'target'], header=None)
     # use subset dataframe for experimenting
     df = data.loc[0:size] #no random selection
@@ -63,6 +69,7 @@ def load_data_ordered(data_path,size):
 
 
 def word_mapping(df):
+    'determine a mapping from words to numbers and the inverse operation'
     df['texts'] = df['texts'].str.replace(',', '')
     t = Tokenizer(num_words= 100000,filters='"#$%&*+-:;<=>?@\\^_`{|}~\t\n',
                   lower=False)  # char_level= True)#maybe try with single characters instead of words
@@ -77,13 +84,11 @@ def word_mapping(df):
     return(t,reverse_word_map)
 
 def prepare_sets(df):
+    'prepare the data set for the machine learning task by mapping all words to numbers and one-hot-encoding the target'
     t, reverse_word_map = word_mapping(df)
     t.fit_on_texts(df.texts + df.target)
-    #print(np.where(pd.isnull(df.target)))
     # map the words (and characters) to numbers
     PREDICTORS = t.texts_to_sequences(df.texts)
-    #print(df.texts)
-    #print(PREDICTORS)
     TARGET = t.texts_to_sequences(df.target)
     # pad all entries of PREDICTORS to the same length:
     # find list with maximum length
@@ -91,24 +96,20 @@ def prepare_sets(df):
     # add zeros until each list has same (maximum) length
     for i in range(len(PREDICTORS)):
         PREDICTORS[i] = (PREDICTORS[i] + max_list_predictors * [0])[:max_list_predictors]
-        #print(len(PREDICTORS[i]))
-        #print(len(TARGET[i]))
     #target is only one word i.e. we predict only the next word and not all the next words
     TARGET = [item[0] for item in TARGET]
-
     # one hot encode the target
     TARGET = to_categorical(TARGET)
     return(PREDICTORS,TARGET)
 
 
 def generate_sets(PREDICTORS,TARGET,train_size):
+    'split the sets for training'
     # split data into training and validation
     predictors_train, predictors_test, target_train, target_test = train_test_split(PREDICTORS, TARGET,
-                                                                                    train_size=train_size,
+                                                                                    train_size=train_size,random_state=123)
 
-                                                                                    random_state=123)
-
-    # save them as numpy arrays (?)
+    # save them as numpy arrays
     predictors_train = np.array(predictors_train)
     target_train = np.array(target_train)
     predictors_test = np.array(predictors_test)
@@ -116,17 +117,38 @@ def generate_sets(PREDICTORS,TARGET,train_size):
     return(predictors_train,target_train,predictors_test,target_test)
 
 
-#define the model
+##functions for creating and training the DNN model:
+
 def create_model(max_sequence_len,total_words,neurons,output_dim):
+    'sequential model with LSTM and dropout layers'
     input_len = max_sequence_len - 1
     model = Sequential()
     # Add Input Embedding Layer
     model.add(Embedding(input_dim=total_words, output_dim=128, input_length=input_len))
     model.add(LSTM(neurons, return_sequences=True))
     model.add(Dense(neurons, activation='relu'))
-    model.add(Dropout(0.1))
+    model.add(Dropout(0.35))
     model.add(LSTM(neurons, return_sequences=True))
     model.add(Dense(neurons, activation='relu'))
+    model.add(Dropout(0.3))
+    model.add(LSTM(neurons, return_sequences=True))
+    model.add(Dense(neurons, activation='relu'))
+    model.add(Dropout(0.25))
+    model.add(LSTM(neurons, return_sequences=True))
+    model.add(Dense(neurons, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(LSTM(neurons, return_sequences=True))
+    model.add(Dense(neurons, activation='relu'))
+    model.add(Dropout(0.25))
+    model.add(LSTM(neurons, return_sequences=True))
+    model.add(Dense(neurons, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(LSTM(neurons, return_sequences=True))
+    model.add(Dense(neurons, activation='relu'))
+    model.add(Dropout(0.15))
+    model.add(LSTM(neurons, return_sequences=True))
+    model.add(Dense(neurons, activation='relu'))
+    model.add(Dropout(0.1))
     model.add(LSTM(neurons))
     model.add(Dense(neurons, activation='relu'))
     # Add Output Layer
@@ -136,8 +158,9 @@ def create_model(max_sequence_len,total_words,neurons,output_dim):
     return(model)
 
 def train_and_run_experiment(model,epochs,predictors_train,target_train,predictors_test,target_test,t):
+    'train the model and save it for each epoch'
     # set up model
-    max_list_predictors = len(max(predictors_train, key=len)) #todo: solve use of max_list_predictors better
+    max_list_predictors = len(max(predictors_train, key=len))
     max_sequence_len = max_list_predictors + 1  #
     total_words = len(t.word_index) + 1
     output_dim = np.shape(target_train)[1]
@@ -151,22 +174,21 @@ def train_and_run_experiment(model,epochs,predictors_train,target_train,predicto
     #score = model.evaluate(predictors_test, target_test)
     return(model)
 
-#generate text while chosing always the most likely next word
+
+##functions for generating the predictions and cleaning the output string:
+
 def generate_winner(string,model,t,reverse_word_map,max_length,max_list_predictors):
+    'generate text while chosing always the most likely next word'
     string = string.replace(',', '')
     #map string to number sequence
-    #print(string)
     sequence = t.texts_to_sequences([string])
-    #print(sequence)
     #get length of input
     string_length= len(sequence[0])
     # pad the input
     for i in range(len(sequence)):
-        sequence[i] = (sequence[i] + max_list_predictors * [0])[:max_list_predictors] #todo: solve use of max_list_predictors better
+        sequence[i] = (sequence[i] + max_list_predictors * [0])[:max_list_predictors]
     #get the right datatype
-    #print(sequence)
     sequence = np.array(sequence)
-    #print(sequence)
     # make prediction
     predictions = model.predict(sequence)
     # look for the best prediction
@@ -184,16 +206,12 @@ def generate_winner(string,model,t,reverse_word_map,max_length,max_list_predicto
         #look up the corresponding word
         next_word = reverse_word_map.get(index)
         #append the new word
-        #print(predictions)
-        #print(len(predictions))
-        #print(index)
-        #print(next_word)
         output_string = output_string +' '+ next_word
     return(output_string)
 
 
-#generate string, where each word is chosen according to the probability of its prediction, if predcition is above mean prediction
 def generate_equal(string,model,t,reverse_word_map,max_length,max_list_predictors):
+    'generate string, where each word is chosen according to the probability of its prediction, if predcition is above mean prediction'
     # map string to number sequence
     sequence = t.texts_to_sequences(string)
     # get length of input
@@ -219,10 +237,6 @@ def generate_equal(string,model,t,reverse_word_map,max_length,max_list_predictor
     index = np.random.choice(np.arange(len(predictions)),p = p)
     # look up the corresponding word and start building the output
     output_string = reverse_word_map.get(index)
-    #print(predictions)
-    #print(len(predictions))
-    #print(index)
-    #print(output_string)
     #predict following words on input sequence plus the already predicted words:
     for i in range(max_length - 1):
         # append the sequence with the predicted index (word)
@@ -246,9 +260,8 @@ def generate_equal(string,model,t,reverse_word_map,max_length,max_list_predictor
         output_string = output_string + ' ' + next_word
     return (output_string)
 
-
-#generate string, where the next word is chosen only from the n most likely words
 def generate_choose_from_n_best(n,string,model,t,reverse_word_map,max_length,max_list_predictors):
+    'generate string, where the next word is chosen only from the n most likely words'
     # map string to number sequence
     sequence = t.texts_to_sequences(string)
     # get length of input
@@ -281,7 +294,9 @@ def generate_choose_from_n_best(n,string,model,t,reverse_word_map,max_length,max
         # append the sequence with the predicted index (word)
         sequence[0, i + string_length] = index
         # make a new prediction
+        print('start')
         predictions = model.predict(sequence)
+        print('end')
         # get the right data type
         predictions = np.array(predictions[0])
         # equally chose n best prediction based on their probability distribution
@@ -301,3 +316,21 @@ def generate_choose_from_n_best(n,string,model,t,reverse_word_map,max_length,max
         output_string = output_string + ' ' + next_word
     return(output_string)
 
+
+def clean_string(string):
+    'changes a string into german sentences'
+    #regex for finding . , ! and ?
+    regex = r"\s*([.,!?])\s*"
+    #replacing regex with nothing
+    string = re.sub(regex, "\\1 ", string)
+    #"[regex] matches the start of the string ^ or .?! followed by optional spaces" (Psidom stackoverfow)
+    regex = "(^|[.?!])\s*([a-zA-Z])"
+    #"use lambda function to convert the captured group to upper case" (Psidom stackoverfow)
+    string = re.sub(regex, lambda p: p.group(0).upper(), string)
+    #find last occurence of . ! or ?
+    k = max(string.rfind("."), string.rfind("!"), string.rfind("?"))
+    # cut the string afterwards
+    if k != -1:
+        string = string[:k + 1]
+    #output the string
+    return(string)

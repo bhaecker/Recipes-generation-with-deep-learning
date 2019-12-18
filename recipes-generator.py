@@ -1,40 +1,37 @@
 def start_setup():
+    'is used to create the .exe file, which relies on a trained model, the corresponding tokenizer and the users input'
     import numpy as np
     from keras.models import load_model
     import pickle
-    import sys
-    sys.setrecursionlimit(1000000)
-    # raw_input returns the empty string for "enter"
+    import math
+    import re
+    #only needed in the spec file while creating the exe file via pyinstaller --onefile recipes-generator.py. The predictions are made from the 33 most likely predicted words
+    #import sys
+    #sys.setrecursionlimit(1000000)
     prompt = '> '
-
-    #print("path for tokenizer pls")
-    #path_t = input(prompt)
+    print("Welcome to the recipe generator!")
+    print("This generator uses a RNN Model trained on recipes of chefkoch.de, to generate recipes in german.")
+    print("Please make sure the tokenizer.pickle and model.hdf5 files are in the same filepath as the .exe file you just called.")
+    #load the tokenizer and build the reverse mapping
     t = pickle.load(open('tokenizer.pickle', 'rb'))
+    reverse_word_map = dict(map(reversed, t.word_index.items()))
+    #reverse_word_map = pickle.load(open('reverse_word_map.pickle', 'rb'))
 
-    #print("path for reverse map")
-    #path_reverse = input(prompt)
-    reverse_word_map = pickle.load(open('reverse_word_map.pickle', 'rb'))
+    #load the model and get the input dimensions
+    model = load_model('model.hdf5',compile=False)
+    max_list_predictors = model._layers[0].batch_input_shape[1]
 
-    #print("done tokenizing")
-
-    #print ("path for model")
-    #model_path = input(prompt)
-    model = load_model('weights-improvement-10-2.0043.hdf5')
-
-    #print("give max_list_predictors")
-    max_list_predictors = 394
-
-    # number of output words (length of recipe)
-    print("max. length of recipe:")
-    max_length = input(prompt)
-    max_length = int(max_length)
-
-    # for choosing out of n best word specify n
-    n = 15
-
-    print ("To get started, give an ingridient")
+    print ("To get started, give the ingredients you want to use, separated by a comma:")
     string = input(prompt)
 
+    # number of output words (length of recipe)
+    print("Please specify the maximal length you want your recipe to have:")
+    print("(Note, that the time to generate the recipe depends on the length of it.)")
+    max_length = int(input(prompt))
+
+    # for choosing out of n best word specify n
+    n = 33
+    print("While the recipe is generated, you can start collecting all the ingredients :)")
     # map string to number sequence
     sequence = t.texts_to_sequences(string)
     # get length of input
@@ -42,7 +39,7 @@ def start_setup():
     # pad the input
     for i in range(len(sequence)):
         sequence[i] = (sequence[i] + max_list_predictors * [0])[
-                      :max_list_predictors]  # todo: solve use of max_list_predictors better
+                      :max_list_predictors]
     # get the right datatype
     sequence = np.array(sequence)
     # make prediction
@@ -85,7 +82,25 @@ def start_setup():
         next_word = reverse_word_map.get(index)
         # append the new word
         output_string = output_string + ' ' + next_word
-
-    print("here is your recipie:")
+        if i == math.ceil(max_length/2):
+            print("We are halfway there!")
+            
+    #clean the string by making it german sentences:
+    # regex for finding . , ! and ?
+    regex = r"\s*([.,!?])\s*"
+    # replacing regex with nothing
+    output_string = re.sub(regex, "\\1 ", output_string)
+    # "[regex] matches the start of the string ^ or .?! followed by optional spaces" (Psidom stackoverfow)
+    regex = "(^|[.?!])\s*([a-zA-Z])"
+    # "use lambda function to convert the captured group to upper case" (Psidom stackoverfow)
+    output_string = re.sub(regex, lambda p: p.group(0).upper(), output_string)
+    # find last occurence of . ! or ?
+    k = max(output_string.rfind("."), output_string.rfind("!"), output_string.rfind("?"))
+    # cut the string afterwards
+    if k != -1:
+        output_string = output_string[:k + 1]
+    # output the string
+    print("Here is your recipe:")
     print(output_string)
+
 start_setup()

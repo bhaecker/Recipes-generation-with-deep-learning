@@ -3,9 +3,8 @@ import numpy as np
 import pandas as pd
 from collections import Counter
 import re
-#from keras.preprocessing.text import Tokenizer
-#from keras.preprocessing.text import text_to_word_sequence
-#import textgenrnn
+
+#preprocess the raw json file
 
 #load data set
 with open('recipes.json') as f:
