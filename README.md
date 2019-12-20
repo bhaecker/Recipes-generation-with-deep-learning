@@ -21,7 +21,7 @@
  * For the report and presentation preparation we may take another 5 hours.
 
 # Hacking
-Additionally to the python scripts there is an .exe file available on google drive (https://drive.google.com/drive/folders/1ID6KwBLA3cbRvRuX3mmmae9IYE4Pn3xY?usp=sharing). 
+Additionally to the python scripts there is an [.exe file](https://drive.google.com/drive/folders/1ID6KwBLA3cbRvRuX3mmmae9IYE4Pn3xY?usp=sharing) available on google drive. 
  * The error metric we use is categorical_crossentropy.
  * We achieve 0 loss, which indicates overfitting.
  * For the text generation we use a final model with non-zero loss.
