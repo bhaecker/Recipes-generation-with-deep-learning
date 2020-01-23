@@ -1,21 +1,21 @@
+import sys
+import json
+import random as rd
+from random import randint
+import re
 import pickle
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from keras.preprocessing.text import Tokenizer
 from keras.models import Sequential
-from keras.utils import to_categorical, plot_model
+from keras.utils import to_categorical
 from keras.layers import Dropout, Dense, LSTM, Embedding
 from keras.callbacks import ModelCheckpoint
 from keras.models import load_model
 
-import sys
-import json
-import random as rd
-from random import randint
-import re
-
-#functions for preparing the data sets and test instances:
+####
+#functions for preparing the data sets, test instances and predictions:
 
 def generate_testcases(data_path,size,length):
     'generates test strings (list of ingredients) from original jason file'
@@ -23,7 +23,7 @@ def generate_testcases(data_path,size,length):
     with open(data_path) as f:
         data = json.load(f)
     # safe as dataframe and drop columns which are not needed
-    df = pd.DataFrame(data).drop(columns=['Day', 'Month', 'Name', 'Url', 'Weekday', 'Year'])
+    df = pd.DataFrame(data).drop(columns=['Instructions','Day', 'Month', 'Name', 'Url', 'Weekday', 'Year'])
     # slize it to the right size - no random selection
     df = df.loc[0:size]
     #get the row size
@@ -40,7 +40,7 @@ def generate_testcases(data_path,size,length):
         if next_item in list:
             continue
         #put ingredient in the list if not
-        list = list + [next_item]
+        list = list + [next_item + ',']
     list = " ".join(list)
     return(list)
 
@@ -62,7 +62,7 @@ def load_data_ordered(data_path,size):
     # use subset dataframe for experimenting
     df = data.loc[0:size] #no random selection
     #get rid of [ and ]
-    df['texts'] = df['texts'].replace({'\[': ''}, regex=True) # todo A value is trying to be set on a copy of a slice from a DataFrame.Try using .loc[row_indexer,col_indexer] = value instead
+    df['texts'] = df['texts'].replace({'\[': ''}, regex=True)
     df['texts'] = df['texts'].replace({'\]': ''}, regex=True)
     del data # free memory
     return(df)
@@ -71,22 +71,21 @@ def load_data_ordered(data_path,size):
 def word_mapping(df):
     'determine a mapping from words to numbers and the inverse operation'
     df['texts'] = df['texts'].str.replace(',', '')
-    t = Tokenizer(num_words= 100000,filters='"#$%&*+-:;<=>?@\\^_`{|}~\t\n',
-                  lower=False)  # char_level= True)#maybe try with single characters instead of words
+    t = Tokenizer(num_words= 1000,filters='"#$%&*+-:;<=>?@\\^_`{|}~\t\n',
+                  lower=False)
     t.fit_on_texts(df.texts +' '+df.target)
-    # summarize what was learned:
-    # print(t.word_counts)
-    # print(t.document_count)
-    # print(t.word_index)
-    # print(t.word_docs)
+    #summarize what was learned:
+    print(t.word_counts)
+    print(t.document_count)
+    print(t.word_index)
+    print(t.word_docs)
     #create a reverse word map
     reverse_word_map = dict(map(reversed, t.word_index.items()))
     return(t,reverse_word_map)
 
-def prepare_sets(df):
+def prepare_sets(df,t):
     'prepare the data set for the machine learning task by mapping all words to numbers and one-hot-encoding the target'
-    t, reverse_word_map = word_mapping(df)
-    t.fit_on_texts(df.texts + df.target)
+
     # map the words (and characters) to numbers
     PREDICTORS = t.texts_to_sequences(df.texts)
     TARGET = t.texts_to_sequences(df.target)
@@ -97,14 +96,46 @@ def prepare_sets(df):
     for i in range(len(PREDICTORS)):
         PREDICTORS[i] = (PREDICTORS[i] + max_list_predictors * [0])[:max_list_predictors]
     #target is only one word i.e. we predict only the next word and not all the next words
-    TARGET = [item[0] for item in TARGET]
+    for i in range(0,len(TARGET)):
+        if len(TARGET[i]) == 0:
+            TARGET[i] = 0
+        else:
+            TARGET[i] = TARGET[i][0]
     # one hot encode the target
     TARGET = to_categorical(TARGET)
+    return(PREDICTORS,TARGET)
+
+def prepare_sets_retraining(df,t,model):
+    'prepare the data set for retraining an existing model'
+    # map the words (and characters) to numbers
+    PREDICTORS = t.texts_to_sequences(df.texts)
+    TARGET = t.texts_to_sequences(df.target)
+    # pad all entries of PREDICTORS to the same length:
+    max_list_predictors = model._layers[0].batch_input_shape[1]
+    #if max_list_predictors > len(PREDICTORS):
+
+    # add zeros until each list has same (maximum) length
+    for i in range(len(PREDICTORS)):
+        PREDICTORS[i] = (PREDICTORS[i] + max_list_predictors * [0])[:max_list_predictors]
+    #target is only one word i.e. we predict only the next word and not all the next words
+    for i in range(0,len(TARGET)):
+        if len(TARGET[i]) == 0:
+            TARGET[i] = 0
+        else:
+            TARGET[i] = TARGET[i][0]
+    # one hot encode the target
+    output_dimension = model.get_layer('dense_3').output.shape[1]
+    print(TARGET)
+    TARGET = to_categorical(TARGET, num_classes=output_dimension)
     return(PREDICTORS,TARGET)
 
 
 def generate_sets(PREDICTORS,TARGET,train_size):
     'split the sets for training'
+    if train_size == 1:
+        predictors_train = np.array(PREDICTORS)
+        target_train = np.array(TARGET)
+        return(predictors_train,target_train)
     # split data into training and validation
     predictors_train, predictors_test, target_train, target_test = train_test_split(PREDICTORS, TARGET,
                                                                                     train_size=train_size,random_state=123)
@@ -127,51 +158,24 @@ def create_model(max_sequence_len,total_words,neurons,output_dim):
     model.add(Embedding(input_dim=total_words, output_dim=128, input_length=input_len))
     model.add(LSTM(neurons, return_sequences=True))
     model.add(Dense(neurons, activation='relu'))
-    model.add(Dropout(0.35))
-    model.add(LSTM(neurons, return_sequences=True))
-    model.add(Dense(neurons, activation='relu'))
     model.add(Dropout(0.3))
-    model.add(LSTM(neurons, return_sequences=True))
-    model.add(Dense(neurons, activation='relu'))
-    model.add(Dropout(0.25))
-    model.add(LSTM(neurons, return_sequences=True))
-    model.add(Dense(neurons, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(LSTM(neurons, return_sequences=True))
-    model.add(Dense(neurons, activation='relu'))
-    model.add(Dropout(0.25))
-    model.add(LSTM(neurons, return_sequences=True))
-    model.add(Dense(neurons, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(LSTM(neurons, return_sequences=True))
-    model.add(Dense(neurons, activation='relu'))
-    model.add(Dropout(0.15))
-    model.add(LSTM(neurons, return_sequences=True))
-    model.add(Dense(neurons, activation='relu'))
-    model.add(Dropout(0.1))
     model.add(LSTM(neurons))
     model.add(Dense(neurons, activation='relu'))
+    model.add(Dropout(0.2))
     # Add Output Layer
     model.add(Dense(output_dim, activation='softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='adam')
     print(model.summary())
     return(model)
 
-def train_and_run_experiment(model,epochs,predictors_train,target_train,predictors_test,target_test,t):
+def train_and_run_experiment(model,epochs,predictors_train,target_train):
     'train the model and save it for each epoch'
-    # set up model
-    max_list_predictors = len(max(predictors_train, key=len))
-    max_sequence_len = max_list_predictors + 1  #
-    total_words = len(t.word_index) + 1
-    output_dim = np.shape(target_train)[1]
     # define the checkpoint
     filepath=r"C:\Users\Admin\Desktop\University\Applied Deep Learning\weights-improvement-{epoch:02d}-{loss:.4f}.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='loss', verbose=1, save_best_only=True, mode='min')
     callbacks_list = [checkpoint]
     #train model on data
-    model.fit(predictors_train, target_train, epochs=epochs, verbose=2,callbacks=callbacks_list)
-    #evaluate performance
-    #score = model.evaluate(predictors_test, target_test)
+    model.fit(predictors_train, target_train, epochs=epochs, batch_size=20, verbose=1,callbacks=callbacks_list)
     return(model)
 
 
@@ -213,7 +217,7 @@ def generate_winner(string,model,t,reverse_word_map,max_length,max_list_predicto
 def generate_equal(string,model,t,reverse_word_map,max_length,max_list_predictors):
     'generate string, where each word is chosen according to the probability of its prediction, if predcition is above mean prediction'
     # map string to number sequence
-    sequence = t.texts_to_sequences(string)
+    sequence = t.texts_to_sequences([string])
     # get length of input
     string_length = len(sequence[0])
     # pad the input
@@ -263,7 +267,7 @@ def generate_equal(string,model,t,reverse_word_map,max_length,max_list_predictor
 def generate_choose_from_n_best(n,string,model,t,reverse_word_map,max_length,max_list_predictors):
     'generate string, where the next word is chosen only from the n most likely words'
     # map string to number sequence
-    sequence = t.texts_to_sequences(string)
+    sequence = t.texts_to_sequences([string])
     # get length of input
     string_length = len(sequence[0])
     # pad the input
@@ -294,9 +298,7 @@ def generate_choose_from_n_best(n,string,model,t,reverse_word_map,max_length,max
         # append the sequence with the predicted index (word)
         sequence[0, i + string_length] = index
         # make a new prediction
-        print('start')
         predictions = model.predict(sequence)
-        print('end')
         # get the right data type
         predictions = np.array(predictions[0])
         # equally chose n best prediction based on their probability distribution
