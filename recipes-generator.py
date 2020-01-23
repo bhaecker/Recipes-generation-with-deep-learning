@@ -1,13 +1,18 @@
 def start_setup():
     'is used to create the .exe file, which relies on a trained model, the corresponding tokenizer and the users input'
+    import os
+    # disable debugging logs
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
     import numpy as np
     from keras.models import load_model
     import pickle
     import math
     import re
+
     #only needed in the spec file while creating the exe file via pyinstaller --onefile recipes-generator.py. The predictions are made from the 33 most likely predicted words
     #import sys
     #sys.setrecursionlimit(1000000)
+
     prompt = '> '
     print("Welcome to the recipe generator!")
     print("This generator uses a RNN Model trained on recipes of chefkoch.de, to generate recipes in german.")
@@ -29,11 +34,9 @@ def start_setup():
     print("(Note, that the time to generate the recipe depends on the length of it.)")
     max_length = int(input(prompt))
 
-    # for choosing out of n best word specify n
-    n = 33
     print("While the recipe is generated, you can start collecting all the ingredients :)")
     # map string to number sequence
-    sequence = t.texts_to_sequences(string)
+    sequence = t.texts_to_sequences([string])#!!!!
     # get length of input
     string_length = len(sequence[0])
     # pad the input
@@ -46,17 +49,15 @@ def start_setup():
     predictions = model.predict(sequence)
     # get the right data type
     predictions = np.array(predictions[0])
-    # equally chose n best prediction based on their probability distribution
-    # get indicies of n largest values
-    n_indicies = predictions.argsort()[-n:][::-1]
-    # get the indices of the not n largest values
-    not_n_indices = np.setxor1d(np.indices(predictions.shape), n_indicies)
-    # set values of not n largest values to zero
-    predictions[not_n_indices] = 0
-    # make predictions a proper probability distribution again
-    predictions /= np.sum(predictions)
+    # equally choose prediction based on their probability distribution:
+    # define threshold to omit some predictions
+    threshold = np.average(predictions)
+    # set all predictions under the threshold to zero
+    p = np.where(predictions < threshold, predictions * 0, predictions)
+    # make p a proper probability distribution again
+    p /= np.sum(p)
     # chose the index randomly with respect to the likelyhood of getting chosen i.e. the probability distribution
-    index = np.random.choice(np.arange(len(predictions)), p=predictions)
+    index = np.random.choice(np.arange(len(predictions)), p=p)
     # look up the corresponding word and start building the output
     output_string = reverse_word_map.get(index)
     # predict following words on input sequence plus the already predicted words:
@@ -67,26 +68,24 @@ def start_setup():
         predictions = model.predict(sequence)
         # get the right data type
         predictions = np.array(predictions[0])
-        # equally chose n best prediction based on their probability distribution
-        # get indicies of n largest values
-        n_indicies = predictions.argsort()[-n:][::-1]
-        # get the indices of the not n largest values
-        not_n_indices = np.setxor1d(np.indices(predictions.shape), n_indicies)
-        # set values of not n largest values to zero
-        predictions[not_n_indices] = 0
-        # make predictions a proper probability distribution again
-        predictions /= np.sum(predictions)
+        # equally choose prediction based on their probability distribution:
+        # define threshold to omit some predictions
+        threshold = np.average(predictions)
+        # set all predictions under the threshold to zero
+        p = np.where(predictions < threshold, predictions * 0, predictions)
+        # make p a proper probability distribution again
+        p /= np.sum(p)
         # chose the index randomly with respect to the likelyhood of getting chosen i.e. the probability distribution
-        index = np.random.choice(np.arange(len(predictions)), p=predictions)
+        index = np.random.choice(np.arange(len(predictions)), p=p)
         # look up the corresponding word
         next_word = reverse_word_map.get(index)
         # append the new word
         output_string = output_string + ' ' + next_word
         if i == math.ceil(max_length/2):
             print("We are halfway there!")
-            
+
     #clean the string by making it german sentences:
-    # regex for finding . , ! and ?
+    #regex for finding . , ! and ?
     regex = r"\s*([.,!?])\s*"
     # replacing regex with nothing
     output_string = re.sub(regex, "\\1 ", output_string)
